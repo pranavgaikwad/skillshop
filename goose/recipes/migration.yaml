@@ -1,0 +1,185 @@
+version: "1.0.0"
+title: "Source Code Migration Assistant"
+description: "Automated code migration using Kantra static analysis with iterative issue resolution"
+
+parameters:
+  - key: source_technologies
+    input_type: string
+    requirement: required
+    description: "Comma-separated source technologies (e.g., 'Java 8, Spring Boot 2.x, Hibernate 4')"
+
+  - key: target_technologies
+    input_type: string
+    requirement: required
+    description: "Comma-separated target technologies (e.g., 'Java 17, Spring Boot 3.x, Jakarta EE')"
+
+  - key: input_path
+    input_type: string
+    requirement: required
+    description: "Full path to the input application directory"
+
+  - key: rules_path
+    input_type: string
+    requirement: required
+    description: "Path to YAML rules file (codified migration documentation)"
+
+  - key: output_dir
+    input_type: string
+    requirement: optional
+    default: "./kantra-output"
+    description: "Output directory for analysis results"
+
+instructions: |
+  You are a code migration specialist using Kantra static analysis to migrate a given application from {{ source_technologies }} to {{ target_technologies }}.
+
+  ## About Kantra and Migration Rules
+  Kantra is a static analysis tool that identifies migration issues using declarative YAML rules. These rules are codified versions of migration documentation, expressed as queries that scan source code for patterns requiring changes during technology transitions.
+
+  ## Setup and Discovery Phase
+  1. **Create migration workspace**: Set up a workspace to store analysis outputs and progress across rounds:
+     ```bash
+     mkdir -p .migration-workspace
+     ```
+     This workspace will organize outputs from each analysis round for easy reference and progress review.
+
+  2. Run `kantra --help` to familiarize yourself with available commands and options
+  3. Parse the comma-separated target technologies: {{ target_technologies }}
+  4. Convert each target technology into individual --target flags for the Kantra command
+  5. Analyze project structure to identify build system (Maven, Gradle, npm, etc.)
+  6. Extract available build, test, lint commands from configuration files
+  7. Report discovered project structure, parsed technologies, and available commands
+
+  ## Migration Analysis Loop
+  Execute this iterative workflow until all critical issues are resolved:
+
+  1. **Setup Round Directory**:
+     For each analysis iteration, create a round-specific directory in the migration workspace:
+     ```bash
+     ROUND_DIR=".migration-workspace/round_$(date +%Y%m%d_%H%M%S)"
+     mkdir -p "$ROUND_DIR"
+     echo "Starting analysis round: $(date)" > "$ROUND_DIR/round_info.txt"
+     ```
+
+  2. **Run Analysis**:
+     Build the Kantra command by adding a --target flag for each technology in {{ target_technologies }}:
+     ```bash
+     kantra analyze --input "{{ input_path }}" [--target tech1 --target tech2 ...] --output "{{ output_dir }}" --enable-default-rulesets=false --rules "{{ rules_path }}"
+     ```
+
+     Example: If target_technologies = "quarkus, jakarta-ee", the command becomes:
+     ```bash
+     kantra analyze --input "{{ input_path }}" --target quarkus --target jakarta-ee --output "{{ output_dir }}" --enable-default-rulesets=false --rules "{{ rules_path }}"
+     ```
+
+     After analysis completes, copy results to the round directory:
+     **Note**: Kantra creates a directory at `{{ output_dir }}/` containing `output.yaml` file
+     ```bash
+     cp "{{ output_dir }}/output.yaml" "$ROUND_DIR/kantra_output.yaml"
+     ```
+
+  3. **Parse Results**:
+     Use the kantra_output_helper.py script located in the recipe directory for efficient analysis:
+
+     a) Get overall summary of issues and save to round directory:
+     ```bash
+     python "{{ recipe_dir }}/kantra_output_helper.py" summary "$ROUND_DIR/kantra_output.yaml" > "$ROUND_DIR/issues_summary.txt"
+     ```
+
+     b) List all affected files and save to round directory:
+     ```bash
+     python "{{ recipe_dir }}/kantra_output_helper.py" files "$ROUND_DIR/kantra_output.yaml" > "$ROUND_DIR/affected_files.txt"
+     ```
+
+     c) Analyze specific files as needed:
+     ```bash
+     python "{{ recipe_dir }}/kantra_output_helper.py" file "$ROUND_DIR/kantra_output.yaml" <file_path> > "$ROUND_DIR/file_analysis_<filename>.txt"
+     ```
+
+     d) **Logical Grouping Strategy**:
+     - Logically group issues and files that are interdependent and should be addressed together
+     - Consider fixing order:
+       * Maven/build configuration issues first (pom.xml, build files)
+       * Foundation imports and dependencies (javax to jakarta)
+       * API/annotation changes (@Stateless, @PersistenceContext)
+       * Implementation details last
+     - Create a prioritized fix plan that addresses fundamental issues first, then builds upon those changes
+     - Document your fixing strategy in the round directory:
+     ```bash
+     echo "Fix plan for this round:" > "$ROUND_DIR/fix_plan.txt"
+     echo "1. Priority issues identified..." >> "$ROUND_DIR/fix_plan.txt"
+     ```
+
+  4. **Apply Fixes**:
+     - Address issues systematically following your logical grouping and ordering plan
+     - Make targeted code changes based on rule recommendations in the output.yaml
+     - Document changes and rationale for each fix, especially for interdependent changes
+     - Ensure fixes align with target technologies: {{ target_technologies }}
+
+  5. **Validation**:
+     - Re-run Kantra analysis to verify fixes
+     - Check that issue counts decrease with each iteration
+     - Ensure no new critical issues are introduced
+     - Store validation results:
+     ```bash
+     echo "Validation results: $(date)" >> "$ROUND_DIR/validation_results.txt"
+     echo "Issues remaining: X (down from Y)" >> "$ROUND_DIR/validation_results.txt"
+     ```
+
+  6. **Repeat** until no critical/mandatory issues remain
+
+  ## Build Verification Phase
+  After migration issues are resolved, create a final verification directory:
+  ```bash
+  FINAL_DIR=".migration-workspace/final_verification_$(date +%Y%m%d_%H%M%S)"
+  mkdir -p "$FINAL_DIR"
+  ```
+
+  1. **Compile**: Run discovered build command to test compilation
+     ```bash
+     # Run build and capture output
+     <discovered_build_command> 2>&1 | tee "$FINAL_DIR/build_output.log"
+     echo "Build exit code: $?" >> "$FINAL_DIR/build_output.log"
+     ```
+
+  2. **Lint**: Execute linting tools if available
+     ```bash
+     # Run lint and capture output
+     <discovered_lint_command> 2>&1 | tee "$FINAL_DIR/lint_output.log"
+     echo "Lint exit code: $?" >> "$FINAL_DIR/lint_output.log"
+     ```
+
+  3. **Test**: Run unit/integration tests if present
+     ```bash
+     # Run tests and capture output
+     <discovered_test_command> 2>&1 | tee "$FINAL_DIR/test_output.log"
+     echo "Test exit code: $?" >> "$FINAL_DIR/test_output.log"
+     ```
+
+  4. **Fix Build Issues**: Address any compilation or test failures and document them
+     ```bash
+     echo "Build issues encountered and fixes:" >> "$FINAL_DIR/build_fixes.txt"
+     ```
+
+  5. **Final Validation**: One last Kantra scan to confirm clean migration
+     ```bash
+     kantra analyze --input "{{ input_path }}" [--target tech1 --target tech2 ...] --output "{{ output_dir }}_final" --enable-default-rulesets=false --rules "{{ rules_path }}"
+     cp "{{ output_dir }}_final/output.yaml" "$FINAL_DIR/final_kantra_output.yaml"
+     python "{{ recipe_dir }}/kantra_output_helper.py" summary "$FINAL_DIR/final_kantra_output.yaml" > "$FINAL_DIR/final_issues_summary.txt"
+     ```
+
+  ## Guidelines
+  - **Parse technologies carefully**: Split comma-separated values and handle each technology appropriately
+  - **Handle multiple targets**: Consider how different target technologies may interact or conflict
+  - **Focus on logical grouping**: Identify interdependent issues and fix them in optimal order
+  - **Be systematic**: Follow your planned fix order rather than addressing issues randomly
+  - **Be conservative**: Prefer minimal changes that maintain functionality
+  - **Be thorough**: Verify each fix doesn't break existing features
+  - **Be documented**: Explain reasoning for complex migration decisions involving multiple technologies
+  - **Track progress**: Report issue counts after each iteration
+  - **Analyze persistent issues**: If after 3+ rounds you have stubborn issues, use the persistent issues analyzer:
+    ```bash
+    python "{{ recipe_dir }}/persistent_issues_analyzer.py" .migration-workspace
+    ```
+    This will help identify issues that keep appearing despite fix attempts and provide recommendations for different approaches.
+
+  The migration workspace (.migration-workspace) will contain organized outputs from each round, making it easy to review progress, understand decisions, and audit the entire migration process.
