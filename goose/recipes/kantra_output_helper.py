@@ -55,6 +55,7 @@ def display_issues_summary(output_file):
 
         total_issues = 0
         total_files_affected = set()
+        total_incidents = 0
 
         for i, ruleset in enumerate(data):
             if not isinstance(ruleset, dict):
@@ -93,8 +94,8 @@ def display_issues_summary(output_file):
 
                     # Count unique files for this issue
                     files_with_issue = set()
-                    # Collect unique incident messages
-                    incident_messages = set()
+                    # Get first incident message
+                    first_incident_message = None
 
                     for incident in incidents:
                         try:
@@ -108,31 +109,28 @@ def display_issues_summary(output_file):
                                     files_with_issue.add(file_path)
                                     total_files_affected.add(file_path)
 
-                            # Collect incident messages
-                            message = incident.get('message', 'No message')
-                            if isinstance(message, str) and message:
-                                incident_messages.add(message)
+                            # Get first incident message only
+                            if first_incident_message is None:
+                                message = incident.get('message', 'No message')
+                                if isinstance(message, str) and message:
+                                    first_incident_message = message
 
                         except Exception as e:
                             print(f"Warning: Error processing incident in '{rule_id}': {e}")
                             continue
 
+                    incident_count = len(incidents)
                     total_issues += 1
+                    total_incidents += incident_count
 
                     print(f"🔍 Issue: {rule_id}")
                     print(f"   Description: {description}")
-                    print(f"   Category: {category}")
+                    print(f"   Incidents: {incident_count}")
                     print(f"   Files affected: {len(files_with_issue)}")
 
-                    # Show effort if available
-                    if 'effort' in violation:
-                        effort = violation['effort']
-                        print(f"   Effort: {effort}")
-
-                    # Show incident messages
-                    if incident_messages:
-                        for message in incident_messages:
-                            print(f"   Message: {message}")
+                    # Show first incident message only
+                    if first_incident_message:
+                        print(f"   Message: {first_incident_message}")
                     else:
                         print(f"   Message: No specific messages available")
 
@@ -143,7 +141,7 @@ def display_issues_summary(output_file):
                     continue
 
         print("=" * 80)
-        print(f"TOTAL: {total_issues} issues found across {len(total_files_affected)} files")
+        print(f"TOTAL: {total_issues} issues, {total_incidents} incidents across {len(total_files_affected)} files")
         print("=" * 80)
 
         if total_issues == 0:
