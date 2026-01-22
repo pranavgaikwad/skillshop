@@ -55,12 +55,12 @@ instructions: |
   3. Run `kantra --help` to familiarize yourself with available commands and options
   4. Parse the comma-separated target technologies: {{ target_tech }}
   5. Convert each target technology into individual --target flags for the Kantra command
-  6. Analyze project structure to identify build system (Maven, Gradle, npm, etc.)
-  7. Extract available build, test, lint commands from configuration files
-  8. Report discovered project structure, parsed technologies, and available commands
+  6. **Check for target-specific instructions**: For each target technology, check if a corresponding instruction file exists at `{{ recipe_dir }}/<target>.md` (e.g., `patternfly.md`, `quarkus.md`). If found, read and follow the additional guidance provided.
+  7. Analyze project structure to identify build system (Maven, Gradle, npm, etc.)
+  8. Extract available build, test, lint commands from configuration files
 
   ## Migration Analysis Loop
-  Execute this iterative workflow until all critical issues are resolved:
+  Execute this iterative workflow until either: (a) all migration issues are resolved, or (b) all remaining issues cannot be fixed automatically:
 
   1. **Setup work directory**:
      For each analysis iteration, create a round-specific directory in the migration workspace:
@@ -140,63 +140,62 @@ instructions: |
      echo "1. Priority issues identified..." >> "$WORK_DIR/fix_plan.txt"
      ```
 
+     e) **Identify Additional Migration Issues**:
+     Beyond Kantra analysis findings, proactively identify other issues that need fixing for this migration:
+     - Known breaking changes in the migration path from {{ source_tech }} to {{ target_tech }}
+     - Deprecated APIs, patterns, or libraries that should be updated
+     - Build configuration updates required for target technologies
+     - Dependency version conflicts or required upgrades
+     - Any migration-specific issues documented in target-specific instruction files
+     Document identified issues in the fix plan:
+     ```bash
+     echo "Additional migration issues identified:" >> "$WORK_DIR/fix_plan.txt"
+     ```
+
   4. **Apply Fixes**:
-     - Address issues systematically following your logical grouping and ordering plan
+     - Address all migration issues systematically: Kantra analysis findings, build failures, test failures, and any other known issues
+     - Follow your logical grouping and ordering plan
      - Make targeted code changes based on rule recommendations in the output.yaml
      - Document changes and rationale for each fix, especially for interdependent changes
      - Ensure fixes align with target technologies: {{ target_tech }}
 
   5. **Validation**:
-     - Re-run Kantra analysis to verify fixes
-     - Check that issue counts decrease with each iteration
-     - Ensure no new critical issues are introduced
-     - Store validation results:
+     After applying fixes, validate all changes before proceeding to next iteration:
+
+     a) Re-run Kantra analysis to verify fixes reduced issues:
      ```bash
-     echo "Validation results: $(date)" >> "$WORK_DIR/validation_results.txt"
-     echo "Issues remaining: X (down from Y)" >> "$WORK_DIR/validation_results.txt"
+     kantra analyze --input "{{ input_path }}" [--target tech1 --target tech2 ...] --output $WORK_DIR/kantra-output-validation --provider <provider>
+     python "{{ recipe_dir }}/kantra_output_helper.py" summary "$WORK_DIR/kantra-output-validation/output.yaml" > "$WORK_DIR/validation_kantra.txt"
      ```
 
-  6. **Repeat** until no critical/mandatory issues remain
-
-  ## Build Verification Phase
-  After migration issues are resolved, create a final verification directory:
-  ```bash
-  FINAL_DIR=".migration-workspace/final_verification_$(date +%Y%m%d_%H%M%S)"
-  mkdir -p "$FINAL_DIR"
-  ```
-
-  1. **Compile**: Run discovered build command to test compilation
+     b) Run build to ensure no compilation errors introduced:
      ```bash
-     # Run build and capture output
-     <discovered_build_command> 2>&1 | tee "$FINAL_DIR/build_output.log"
-     echo "Build exit code: $?" >> "$FINAL_DIR/build_output.log"
+     echo "=== Build Validation: $(date) ===" >> "$WORK_DIR/validation_results.txt"
+     <discovered_build_command> 2>&1 | tee -a "$WORK_DIR/validation_results.txt"
+     BUILD_EXIT=$?
+     echo "Build exit code: $BUILD_EXIT" >> "$WORK_DIR/validation_results.txt"
      ```
 
-  2. **Lint**: Execute linting tools if available
+     c) Run lint (if available) to catch code quality issues:
      ```bash
-     # Run lint and capture output
-     <discovered_lint_command> 2>&1 | tee "$FINAL_DIR/lint_output.log"
-     echo "Lint exit code: $?" >> "$FINAL_DIR/lint_output.log"
+     echo "=== Lint Validation: $(date) ===" >> "$WORK_DIR/validation_results.txt"
+     <discovered_lint_command> 2>&1 | tee -a "$WORK_DIR/validation_results.txt"
+     echo "Lint exit code: $?" >> "$WORK_DIR/validation_results.txt"
      ```
 
-  3. **Test**: Run unit/integration tests if present
+     d) Run tests (if available) to verify no regressions:
      ```bash
-     # Run tests and capture output
-     <discovered_test_command> 2>&1 | tee "$FINAL_DIR/test_output.log"
-     echo "Test exit code: $?" >> "$FINAL_DIR/test_output.log"
+     echo "=== Test Validation: $(date) ===" >> "$WORK_DIR/validation_results.txt"
+     <discovered_test_command> 2>&1 | tee -a "$WORK_DIR/validation_results.txt"
+     echo "Test exit code: $?" >> "$WORK_DIR/validation_results.txt"
      ```
 
-  4. **Fix Build Issues**: Address any compilation or test failures and document them
-     ```bash
-     echo "Build issues encountered and fixes:" >> "$FINAL_DIR/build_fixes.txt"
-     ```
+     e) Document validation outcome:
+     - Verify Kantra issue counts decreased
+     - If build/lint/test failures exist, document them as issues to fix in next iteration
+     - Any new failures introduced by fixes must be addressed before loop can exit
 
-  5. **Final Validation**: One last Kantra scan to confirm clean migration
-     ```bash
-     kantra analyze --input "{{ input_path }}" [--target tech1 --target tech2 ...] --output "$WORK_DIR/kantra-output-final" --enable-default-rulesets={{ enable_default_rulesets }} --rules "{{ rules }}"
-     cp "$WORK_DIR/kantra-output-final/output.yaml" "$FINAL_DIR/final_kantra_output.yaml"
-     python "{{ recipe_dir }}/kantra_output_helper.py" summary "$FINAL_DIR/final_kantra_output.yaml" > "$FINAL_DIR/final_issues_summary.txt"
-     ```
+  6. **Repeat** until either all migration issues are resolved or remaining issues cannot be fixed automatically
 
   ## Guidelines
   - **Focus on logical grouping**: Identify interdependent issues and fix them in optimal order
