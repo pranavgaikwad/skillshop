@@ -18,10 +18,10 @@ parameters:
     requirement: required
     description: "Full path to the input application directory"
 
-  - key: rules_path
+  - key: rules
     input_type: string
     requirement: optional
-    description: "Path to YAML rules file (codified migration documentation)"
+    description: "Comma-separated paths to YAML rules"
     default: ""
 
   - key: enable_default_rulesets
@@ -84,7 +84,7 @@ instructions: |
 
      If custom rules are given, add them with the --rules flag:
      ```bash
-     kantra analyze --input "{{ input_path }}" --target quarkus --target jakarta-ee --output $WORK_DIR/kantra-output --provider <provider> --rules "{{ rules_path }}"
+     kantra analyze --input "{{ input_path }}" --target quarkus --target jakarta-ee --output $WORK_DIR/kantra-output --provider <provider> --rules "{{ rules }}"
      ```
 
      If user doesn't want to use default rulesets, add the --enable-default-rulesets=false flag:
@@ -99,12 +99,13 @@ instructions: |
      ```
 
      Here are the full options that the user has set:
-     - source_tech: {{ source_tech }}
-     - target_tech: {{ target_tech }}
-     - input_path: {{ input_path }}
-     - rules_path: {{ rules_path }}
-     - enable_default_rulesets: {{ enable_default_rulesets }}
+     - Source technologies: {{ source_tech }}
+     - Target technologies: {{ target_tech }}
+     - Input: {{ input_path }}
+     - Rules: {{ rules }}
+     - Enable Default Rulesets: {{ enable_default_rulesets }}
 
+     Note that user specified targets and sources may be different from actual values expected in Kantra cli. If default rulesets are disabled, you may not require to pass an explicit target value, if you're unable to find the right value to use.
      `output.yaml` contains the analysis results in the YAML format.
 
   3. **Parse Results**:
@@ -192,7 +193,7 @@ instructions: |
 
   5. **Final Validation**: One last Kantra scan to confirm clean migration
      ```bash
-     kantra analyze --input "{{ input_path }}" [--target tech1 --target tech2 ...] --output "$WORK_DIR/kantra-output-final" --enable-default-rulesets={{ enable_default_rulesets }} --rules "{{ rules_path }}"
+     kantra analyze --input "{{ input_path }}" [--target tech1 --target tech2 ...] --output "$WORK_DIR/kantra-output-final" --enable-default-rulesets={{ enable_default_rulesets }} --rules "{{ rules }}"
      cp "$WORK_DIR/kantra-output-final/output.yaml" "$FINAL_DIR/final_kantra_output.yaml"
      python "{{ recipe_dir }}/kantra_output_helper.py" summary "$FINAL_DIR/final_kantra_output.yaml" > "$FINAL_DIR/final_issues_summary.txt"
      ```
