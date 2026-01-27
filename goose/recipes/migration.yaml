@@ -60,7 +60,7 @@ instructions: |
   8. Extract available build, test, lint commands from configuration files
 
   ## Migration Analysis Loop
-  Execute this iterative workflow until either: (a) all migration issues are resolved, or (b) all remaining issues cannot be fixed automatically:
+  Execute this iterative workflow. You MUST continue looping until the exit criteria in step 6 are satisfied:
 
   1. **Setup work directory**:
      For each analysis iteration, create a round-specific directory in the migration workspace:
@@ -187,15 +187,42 @@ instructions: |
      ```bash
      echo "=== Test Validation: $(date) ===" >> "$WORK_DIR/validation_results.txt"
      <discovered_test_command> 2>&1 | tee -a "$WORK_DIR/validation_results.txt"
-     echo "Test exit code: $?" >> "$WORK_DIR/validation_results.txt"
+     TEST_EXIT=$?
+     echo "Test exit code: $TEST_EXIT" >> "$WORK_DIR/validation_results.txt"
      ```
 
-     e) Document validation outcome:
-     - Verify Kantra issue counts decreased
-     - If build/lint/test failures exist, document them as issues to fix in next iteration
-     - Any new failures introduced by fixes must be addressed before loop can exit
+     e) Compare issue counts:
+     - Record current Kantra issue count
+     - Compare to previous round's count to verify progress
+     - If no progress made, reassess approach before continuing
 
-  6. **Repeat** until either all migration issues are resolved or remaining issues cannot be fixed automatically
+  6. **Loop Exit Decision**:
+     Before starting the next iteration, evaluate exit criteria:
+
+     a) **Check if migration is complete** (ALL must be true to exit):
+     - Kantra analysis reports 0 issues
+     - Build succeeds (exit code 0)
+     - Tests pass (if available)
+     - No known unfixed migration issues remain
+
+     b) **If exit criteria NOT met**, you MUST continue to the next iteration:
+     - Go back to step 1 and start a new round
+     - Do NOT exit the loop until all criteria above are satisfied
+
+     c) **If you believe an issue cannot be fixed**:
+     - Document the specific issue and why it cannot be fixed automatically
+     - Attempt at least 2 different approaches before marking as unfixable
+     - Continue fixing other issues; unfixable issues do not allow early exit
+     - Only after ALL other fixable issues are resolved AND unfixable issues are documented, you may exit
+
+     d) **Track progress across rounds**:
+     ```bash
+     echo "Round complete: $(date)" >> "$WORK_DIR/round_info.txt"
+     echo "Issues remaining: [count from validation]" >> "$WORK_DIR/round_info.txt"
+     echo "Exit criteria met: [YES/NO]" >> "$WORK_DIR/round_info.txt"
+     ```
+
+  7. **Continue** to next iteration (go back to step 1) until exit criteria are satisfied
 
   ## Guidelines
   - **Focus on logical grouping**: Identify interdependent issues and fix them in optimal order
