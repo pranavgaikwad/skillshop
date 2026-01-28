@@ -10,10 +10,15 @@ Kantra is a static analysis tool that identifies migration issues using declarat
 ## Setup and Discovery
 
 1. Explore the project structure and identify the build system (Maven, Gradle, npm, etc.)
-2. Extract available build, test, and lint commands from configuration files
-3. Create a migration workspace directory to store analysis outputs across rounds
-4. Run `kantra --help` to familiarize yourself with available options
-5. Check for target-specific instructions at `targets/<target>.md` (e.g., `targets/patternfly.md`). If found, follow that guidance first.
+2. Extract available build and lint commands from configuration files
+3. **Discover test suites**: Identify all available tests and their commands:
+   - Look for test directories (`test/`, `tests/`, `__tests__/`, `src/test/`)
+   - Check test configuration (jest.config, pytest.ini, pom.xml surefire plugin, etc.)
+   - Identify test types: unit tests, integration tests, e2e tests, behavioral tests (Cypress, Playwright, Cucumber, etc.)
+   - Note the commands to run each test type
+4. **Create migration workspace**: Create a workspace directory **outside** the application directory (e.g., `/tmp/migration-workspace-<app-name>/`) to store analysis outputs. Do not place the workspace inside the project to avoid interference with builds and analysis.
+5. Run `kantra --help` to familiarize yourself with available options
+6. Check for target-specific instructions at `targets/<target>.md` (e.g., `targets/patternfly.md`). If found, follow that guidance first.
 
 ## Migration Loop
 
@@ -46,7 +51,7 @@ python scripts/kantra_output_helper.py file <work_dir>/kantra-output/output.yaml
 
 ### 3. Plan Fixes
 
-Create a detailed fix plan based on logical grouping:
+Create a detailed fix plan and document it in `<workspace>/plan.md`:
 
 a) **Group interdependent issues** that should be addressed together
 
@@ -62,7 +67,13 @@ c) **Identify additional migration issues** beyond Kantra findings:
    - Dependency version conflicts
    - Issues documented in target-specific instruction files
 
-d) **Document your fix plan** before starting
+d) **Write plan.md** containing:
+   - Summary of all issues (by category)
+   - Logical grouping and dependencies
+   - Fix order with rationale
+   - Expected impact of each fix group
+
+   Update this file as you progress through iterations.
 
 ### 4. Apply Fixes and Validate
 
@@ -74,7 +85,12 @@ b) **Run build** to ensure no compilation errors
 
 c) **Run lint** (if available) to catch code quality issues
 
-d) **Run tests** (if available) to verify no regressions
+d) **Run tests** - Execute discovered test suites in this priority order:
+   1. **Behavioral/E2E tests first** (Cypress, Playwright, Cucumber, etc.) - these validate user-facing functionality
+   2. **Integration tests** - verify component interactions still work
+   3. **Unit tests** - check individual function correctness
+
+   If any tests fail, treat them as migration issues to fix before proceeding.
 
 e) **Compare issue counts** to previous round - if no progress, reassess approach
 
@@ -85,7 +101,7 @@ Evaluate exit criteria before starting the next iteration:
 **Exit criteria (ALL must be true)**:
 - Kantra analysis reports 0 issues
 - Build succeeds
-- Tests pass (if available)
+- All discovered tests pass (behavioral, integration, and unit tests)
 - No known unfixed migration issues remain
 
 **If criteria NOT met**: Go back to step 1. Do NOT exit until all criteria are satisfied.
@@ -100,6 +116,5 @@ Evaluate exit criteria before starting the next iteration:
 
 - **Focus on logical grouping**: Identify interdependent issues and fix them in optimal order
 - **Be systematic**: Follow your planned fix order rather than addressing issues randomly
-- **Be conservative**: Prefer minimal changes that maintain functionality
 - **Be thorough**: Verify each fix doesn't break existing features
 - **Analyze persistent issues**: If after 3+ rounds you have stubborn issues, reassess the approach and try alternative solutions
